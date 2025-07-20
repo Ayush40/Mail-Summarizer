@@ -1,8 +1,8 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Navbar({ user, onLogout }) {
     const [open, setOpen] = useState(false);
-    console.log('Navbar received user:', user); 
 
     return (
         <nav className="bg-white/10 backdrop-blur-md text-white px-4 py-3 shadow-md fixed w-full z-10">
@@ -12,9 +12,9 @@ export default function Navbar({ user, onLogout }) {
 
                 {/* Center - Links */}
                 <div className="hidden md:flex space-x-8 text-sm">
-                    <a href="/" className="hover:underline">Home</a>
-                    <a href="#about" className="hover:underline">About Us</a>
-                    <a href="#contact" className="hover:underline">Contact Us</a>
+                    <Link to="/" className="hover:underline">Home</Link>
+                    <Link to="/about" className="hover:underline">About Us</Link>
+                    <Link to="/contact" className="hover:underline">Contact Us</Link>
                 </div>
 
                 {/* Right - User Dropdown */}

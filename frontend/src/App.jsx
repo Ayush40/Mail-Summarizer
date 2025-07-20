@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import SummaryList from './components/SummaryList';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
 import Navbar from './components/Navbar';
+import HomePage from './components/pages/HomePage';
+import About from './components/pages/About';
+import Contact from './components/pages/Contact';
+import AuthCallback from './components/AuthCallback';
 
 function App() {
   const [accessToken, setAccessToken] = useState('');
@@ -9,11 +14,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
 
+  // Start Google OAuth flow
   const handleAuth = async () => {
     const res = await axios.get('http://localhost:4000/auth-url');
     window.location.href = res.data.url;
   };
 
+  // Log out user
   const handleLogout = () => {
     setAccessToken('');
     setUser(null);
@@ -23,6 +30,7 @@ function App() {
     window.location.href = '/';
   };
 
+  // Get user profile from Google with access token
   const getUserProfile = async (token) => {
     try {
       const res = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -30,13 +38,12 @@ function App() {
       });
       return res.data;
     } catch (err) {
-      if (err.response?.status === 401) {
-        handleLogout();
-      }
+      if (err.response?.status === 401) handleLogout();
       return null;
     }
   };
 
+  // Summarize emails using backend
   const summarizeEmails = async (token) => {
     setLoading(true);
     try {
@@ -57,11 +64,14 @@ function App() {
       const storedT = localStorage.getItem('accessToken');
       const storedU = localStorage.getItem('user');
 
+      // If we're landing directly with an access token and user in localStorage (already logged in)
       if (storedT && storedU) {
         setAccessToken(storedT);
         setUser(JSON.parse(storedU));
         await summarizeEmails(storedT);
-      } else if (code) {
+      }
+      // If we're landing here with a code (coming from /auth/callback)
+      else if (code) {
         try {
           const { data } = await axios.post('http://localhost:4000/exchange-token', { code });
           const token = data.access_token;
@@ -80,49 +90,40 @@ function App() {
         }
       }
     };
-
     init();
+    // eslint-disable-next-line
   }, []);
 
   return (
-    <>
+    <Router>
       <Navbar user={user} onLogout={handleLogout} />
       <div className="min-h-screen bg-gray-900 text-white pt-20 px-6">
         <div className="max-w-4xl mx-auto space-y-6">
-          {!accessToken ? (
-            <div className="text-center space-y-6">
-              <img
-                src="/mail.png"
-                className="w-28 h-28 mx-auto rounded-full"
-                alt="AI Mail"
-              />
-              <h2 className="text-2xl font-bold">Welcome to Gmail Summarizer</h2>
-              <button
-                onClick={handleAuth}
-                className="bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition"
-              >
-                Login with Google
-              </button>
-            </div>
-          ) : (
-            <>
-              {loading && !summaries.length ? (
-                <div className="flex flex-col items-center space-y-4 py-12">
-                  <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-lg text-center">Summarizing today’s emails...</p>
-                </div>
-              ) : summaries.length > 0 ? (
-                <SummaryList summaries={summaries} />
-              ) : (
-                <p>No emails found today.</p>
-              )}
-            </>
-          )}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <HomePage
+                  accessToken={accessToken}
+                  loading={loading}
+                  summaries={summaries}
+                  onLoginClick={handleAuth}
+                />
+              }
+            />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route
+              path="/auth/callback"
+              element={
+                <AuthCallback />
+              }
+            />
+          </Routes>
         </div>
       </div>
-    </>
+    </Router>
   );
-
 }
 
 export default App;
