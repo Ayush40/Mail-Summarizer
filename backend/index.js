@@ -3,14 +3,28 @@ const axios = require('axios');
 const cors = require('cors');
 require('dotenv').config();
 
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+function extractPlainText(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    return Buffer.from(payload.body.data, 'base64').toString('utf8');
+  }
+  if (payload.parts && Array.isArray(payload.parts)) {
+    for (const part of payload.parts) {
+      const text = extractPlainText(part);
+      if (text) return text;
+    }
+  }
+  return '';
+}
 
-// Gemini retry wrapper
+// --- Gemini retry wrapper ---
 async function summarizeWithRetry(prompt, retries = 3) {
   const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
 
@@ -20,10 +34,13 @@ You are a smart email assistant. Given grouped email text by sender, return vali
   "summaries": [
     {
       "sender": "Sender Name",
+      "category": "Topic/Category (e.g. Updates, Promotions, Urgent, Social, etc.)",
+      "priority": "High/Medium/Low",
       "points": ["summary point 1", "summary point 2", ...]
     }
   ]
 }
+Prioritize based on urgency or importance (urgent topics, deadlines, action required = High; general info or newsletters = Low).
 Only return valid JSON.
 `;
 
@@ -45,34 +62,15 @@ Only return valid JSON.
         const delay = 1000 * Math.pow(2, i);
         await new Promise((res) => setTimeout(res, delay));
       } else {
-        console.error(`❌ Gemini retry failed:`, err.message);
+        console.error('❌ Gemini retry failed:', err.message);
         throw err;
       }
     }
   }
-
   throw new Error('Gemini API call failed after retries.');
 }
 
-// Helper: Extract plain text from Gmail payload recursively
-function extractPlainText(payload) {
-  if (!payload) return '';
-
-  if (payload.mimeType === 'text/plain' && payload.body?.data) {
-    return Buffer.from(payload.body.data, 'base64').toString('utf8');
-  }
-
-  if (payload.parts && Array.isArray(payload.parts)) {
-    for (const part of payload.parts) {
-      const text = extractPlainText(part);
-      if (text) return text;
-    }
-  }
-
-  return '';
-}
-
-// 🔐 Google Auth URL
+// --- Google Auth URL ---
 app.get('/auth-url', (req, res) => {
   const redirect_uri = 'http://localhost:5173/auth/callback';
   const scopes = [
@@ -85,7 +83,7 @@ app.get('/auth-url', (req, res) => {
   res.json({ url });
 });
 
-// 🔑 Token exchange
+// --- Token exchange ---
 app.post('/exchange-token', async (req, res) => {
   const { code } = req.body;
   const redirect_uri = 'http://localhost:5173/auth/callback';
@@ -106,7 +104,7 @@ app.post('/exchange-token', async (req, res) => {
   }
 });
 
-// 📩 Summarize today's emails
+// --- Summarize today's emails ---
 app.post('/summarize-emails', async (req, res) => {
   const { access_token } = req.body;
 
@@ -115,14 +113,18 @@ app.post('/summarize-emails', async (req, res) => {
     today.setHours(0, 0, 0, 0);
     const afterEpoch = Math.floor(today.getTime() / 1000);
 
+    // Fetch emails after today's midnight
     const listRes = await axios.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
       headers: { Authorization: `Bearer ${access_token}` },
       params: { q: `after:${afterEpoch}` },
     });
 
     const messages = listRes.data.messages || [];
-    const emails = [];
+    if (messages.length === 0) {
+      return res.json({ summary: [] }); // <-- No emails today
+    }
 
+    const emails = [];
     for (const msg of messages) {
       const detailRes = await axios.get(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
@@ -138,6 +140,7 @@ app.post('/summarize-emails', async (req, res) => {
       emails.push({ from, snippet: body });
     }
 
+    // Group by sender
     const grouped = {};
     for (const { from, snippet } of emails) {
       const sender = from.split('<')[0].trim();

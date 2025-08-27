@@ -64,13 +64,13 @@ function App() {
       const storedT = localStorage.getItem('accessToken');
       const storedU = localStorage.getItem('user');
 
-      // If we're landing directly with an access token and user in localStorage (already logged in)
+      // Already logged in
       if (storedT && storedU) {
         setAccessToken(storedT);
         setUser(JSON.parse(storedU));
         await summarizeEmails(storedT);
       }
-      // If we're landing here with a code (coming from /auth/callback)
+      // Just authenticated via Google
       else if (code) {
         try {
           const { data } = await axios.post('http://localhost:4000/exchange-token', { code });
@@ -94,6 +94,23 @@ function App() {
     // eslint-disable-next-line
   }, []);
 
+  // Auto-refresh every 5 minutes
+  useEffect(() => {
+    if (!accessToken) return;
+    const interval = setInterval(() => {
+      summarizeEmails(accessToken);
+    }, 5 * 60 * 1000); // every 5 minutes
+    return () => clearInterval(interval);
+  }, [accessToken]);
+
+  // Refresh on window/tab focus
+  useEffect(() => {
+    if (!accessToken) return;
+    const onFocus = () => summarizeEmails(accessToken);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [accessToken, user]);
+
   return (
     <Router>
       <Navbar user={user} onLogout={handleLogout} />
@@ -113,12 +130,7 @@ function App() {
             />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
-            <Route
-              path="/auth/callback"
-              element={
-                <AuthCallback />
-              }
-            />
+            <Route path="/auth/callback" element={<AuthCallback />} />
           </Routes>
         </div>
       </div>
