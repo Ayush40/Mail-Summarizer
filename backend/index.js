@@ -24,9 +24,9 @@ function extractPlainText(payload) {
   return '';
 }
 
-// --- Gemini retry wrapper ---
+// --- Gemini retry wrapper --- 
 async function summarizeWithRetry(prompt, retries = 3) {
-  const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "models/gemini-2.5-flash" });
 
   const instruction = `
 You are a smart email assistant. Given grouped email text by sender, return valid JSON using this format:
@@ -36,11 +36,14 @@ You are a smart email assistant. Given grouped email text by sender, return vali
       "sender": "Sender Name",
       "category": "Topic/Category (e.g. Updates, Promotions, Urgent, Social, etc.)",
       "priority": "High/Medium/Low",
-      "points": ["summary point 1", "summary point 2", ...]
+      "points": ["summary point 1", "summary point 2", ...],
+      "smartReplies": ["Reply suggestion 1", "Reply suggestion 2", "Reply suggestion 3"]
     }
   ]
 }
 Prioritize based on urgency or importance (urgent topics, deadlines, action required = High; general info or newsletters = Low).
+Generate 3 contextual smart reply suggestions that are appropriate responses to the email content.
+Smart replies should be brief (5-15 words), professional, and action-oriented.
 Only return valid JSON.
 `;
 

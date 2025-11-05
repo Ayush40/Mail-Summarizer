@@ -1,16 +1,23 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import jsPDF from 'jspdf';
-import { FiDownload } from "react-icons/fi";
+import { FiDownload, FiCopy, FiCheck } from "react-icons/fi";
 import { AiFillFilePdf } from "react-icons/ai";
 
 export default function SummaryList({ summaries }) {
     const [exporting, setExporting] = useState(false);
+    const [copiedIndex, setCopiedIndex] = useState(null);
 
     const sortedSummaries = [...summaries].sort((a, b) => {
         const order = { High: 0, Medium: 1, Low: 2 };
         return order[a.priority] - order[b.priority];
     });
+
+    const copyToClipboard = (text, idx) => {
+        navigator.clipboard.writeText(text);
+        setCopiedIndex(idx);
+        setTimeout(() => setCopiedIndex(null), 2000);
+    };
 
     const exportToCSV = () => {
         const csvRows = [];
@@ -110,9 +117,32 @@ export default function SummaryList({ summaries }) {
                                         {entry.priority}
                                     </span>
                                 </div>
-                                <ul className="list-disc list-inside space-y-1 text-sm">
+                                <ul className="list-disc list-inside space-y-1 text-sm mb-4">
                                     {entry.points.map((point, i) => (<li key={i}>{point}</li>))}
                                 </ul>
+
+                                {/* Smart Replies Section */}
+                                {entry.smartReplies && entry.smartReplies.length > 0 && (
+                                    <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <p className="text-xs font-semibold text-gray-600 mb-2">💡 Smart Replies:</p>
+                                        <div className="flex flex-col gap-2">
+                                            {entry.smartReplies.map((reply, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => copyToClipboard(reply, `${idx}-${i}`)}
+                                                    className="flex items-center justify-between px-3 py-2 text-xs bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg transition-all text-left group"
+                                                >
+                                                    <span className="flex-1 text-gray-700 group-hover:text-blue-700">{reply}</span>
+                                                    {copiedIndex === `${idx}-${i}` ? (
+                                                        <FiCheck className="text-green-500 ml-2 flex-shrink-0" size={14} />
+                                                    ) : (
+                                                        <FiCopy className="text-gray-400 group-hover:text-blue-500 ml-2 flex-shrink-0" size={14} />
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </motion.div>
                         ))}
                     </div>
